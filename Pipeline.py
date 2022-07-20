@@ -1,4 +1,5 @@
 import os
+import sys
 import subprocess
 import wget
 import time
@@ -180,7 +181,7 @@ for i in range(number_of_genomes):
 	os.system("fastqc -t 18 -f fastq " + current_read + "_paired_1.fastq.gz" + current_read + "_paired_2.fastq.gz")
 
 	#
-	# getOrganelle
+	#	getOrganelle
 	#
 
 	if not os.path.exists(current_path + "getOrganelle_" + names[i]):
@@ -189,7 +190,7 @@ for i in range(number_of_genomes):
 		second = current_read + "_paired_2.fastq.gz"
 		folderName = current_path + "getOrganelle_" + names[i]
 		spades = "/vol/storage/SPAdes-3.15.4-Linux/bin/"
-		os.system(getOrganelle + " -1 " + first + " -2 " + second + " -t 1 -o " + folderName + " -F animal_mt -R 10 --memory-save -w 195 --out-per-round --which-spades " + spades)
+		os.system(getOrganelle + " -1 " + first + " -2 " + second + " -o " + folderName + " -F animal_mt -R 10 --memory-save --out-per-round --which-spades " + spades)
 	else:
 		print("GetOrganelle folder already exists")
 	
@@ -225,6 +226,7 @@ for i in range(number_of_genomes):
 	os.system("samtools mpileup -C50 -uf " + current_unzipped_refGenome + " " + current_path + "bwa.sorted.bam | bcftools call -c -o " + current_path + "output.vcf")
 
 	# zip .vcf, because they are like 110 GB big (i only have 2 TB, i need space)
+	print("\nZipping .vcf file...")
 	os.system("bgzip " + current_path + "output.vcf")
 
 	# delete files that aren't needed anymore
