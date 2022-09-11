@@ -98,7 +98,7 @@ for i in range(number_of_genomes):
 
 	# check if folder and .vcf already exists. If not, create folder and/or .vcf
 	if os.path.exists(current_path + "output.vcf.gz"):
-		print("\n.vcf file already exists, skipping species\n")
+		print(".vcf file already exists for " + names[i] + ", skipping species\n")
 		runtime_per_animal.append(loop_time)
 		continue
 	elif not os.path.exists(current_path):
@@ -116,8 +116,14 @@ for i in range(number_of_genomes):
 	current_read = "PLACEHOLDER_PATH_READ"
 
 	if os.path.exists(current_path + current_read_name):
-		print("Read file found, no need to download it again\n")
+		print("Read file found, no need to download it again")
 		current_read = current_path + current_read_name
+	elif os.path.exists(current_path + current_read_name + ".lite.1"):
+		print("Read file found, no need to download it again")
+		current_read = current_path + current_read_name + ".lite.1"
+	elif os.path.exists(current_path + current_read_name + ".sralite.1"):
+		print("Read file found, no need to download it again")
+		current_read = current_path + current_read_name + ".sralite.1"
 	else:
 		print("Downloading read file...")
 		current_read = wget.download(readDownloadLinks[i], out=current_path)
@@ -128,7 +134,7 @@ for i in range(number_of_genomes):
 	current_refGenome = "PLACEHOLDER_PATH_REFERENCE_GENOME"	
 
 	if os.path.exists(current_path + current_refGenome_name):
-		print("\nReferenceGenome found, no need to download it again\n")
+		print("\nReference Genome found, no need to download it again")
 		current_refGenome = current_path + current_refGenome_name
 	else:
 		print("\nDownloading reference genome...")
@@ -152,33 +158,77 @@ for i in range(number_of_genomes):
 	#	preparing reads by converting them to fastq and trimming them
 	#
 
+	if ".sralite.1" in current_read:
+		os.rename(current_read, current_read[:-10])
+		current_read = current_read[:-10]
+	elif ".lite.1" in current_read:
+		os.rename(current_read, current_read[:-7])
+		current_read = current_read[:-7]
+
 	# convert read file to fastq format
-	print("\nConverting read file to fastq format...")
-	os.system("/vol/storage/ncbi_sra_tools/sratoolkit.3.0.0-ubuntu64/bin/fasterq-dump  --split-files " + current_read + " --outdir " + current_path)
-	print("\nGzipping .fastq file...")
-	os.system("gzip " + current_read + "_1.fastq")
-	os.system("gzip " + current_read + "_2.fastq")
+	if os.path.exists(current_read + "_1.fastq"):
+		print("Read file in .fastq format exists, no need to convert it again")
+	else:
+		print("\nConverting read file to fastq format...")
+		os.system("/vol/storage/ncbi_sra_tools/sratoolkit.3.0.0-ubuntu64/bin/fasterq-dump  --split-files " + current_read + " --outdir " + current_path)
+
+	# zipping .fastq files, if the zipped files don't already exist
+	if os.path.exists(current_read + "_1.fastq.gz"):
+		print(current_read + "_1.fastq already exists")
+	else:
+		print("\nGzipping " + current_read + "_1.fastq...")
+		os.system("gzip " + current_read + "_1.fastq")
+
+	if os.path.exists(current_read + "_2.fastq.gz"):
+		print(current_read + "_2.fastq already exists")
+	else:
+		print("\nGzipping " + current_read + "_2.fastq...")
+		os.system("gzip " + current_read + "_2.fastq")
 
 	if not os.path.exists(current_read + "_1.fastq.gz"):
 		runtime_per_animal.append(loop_time)
-		print("fastq-dump didn't work. Therefore the neccesary file " + current_read + ".fastq is missing. Skipping genome")
+		print("fastq-dump or gzip didn't work. Therefore the neccesary file " + current_read + "_1.fastq.gz is missing. Skipping genome")
 		continue
 
+	if not os.path.exists(current_read + "_2.fastq.gz"):
+		runtime_per_animal.append(loop_time)
+		print("fastq-dump or gzip didn't work. Therefore the neccesary file " + current_read + "_2.fastq.gz is missing. Skipping genome")
+		continue
+	
 	# cut adapters and trim low-quality reads
 	print("\nTrimming adapters and low-quality reads...\n")
 	os.system("java -jar /vol/storage/Trimmomatic-0.39/trimmomatic-0.39.jar PE -threads 8 " + current_read + "_1.fastq.gz " + current_read + "_2.fastq.gz " + current_read + "_paired_1.fastq.gz " + current_read + "_unpaired_1.fastq.gz " + current_read + "_paired_2.fastq.gz " + current_read + "_unpaired_2.fastq.gz " + "SLIDINGWINDOW:4:20 MINLEN:25 ILLUMINACLIP:/vol/storage/Trimmomatic-0.39/adapters/TruSeq3-PE.fa:2:30:10:2:keepBothReads")
+	
+	if not os.path.exists(current_read + "_paired_1.fastq.gz"):
+		print("Trimmomatic failed. Trying again with argument -phred33...\n")
+		os.system("java -jar /vol/storage/Trimmomatic-0.39/trimmomatic-0.39.jar PE -threads 8 -phred33 " + current_read + "_1.fastq.gz " + current_read + "_2.fastq.gz " + current_read + "_paired_1.fastq.gz " + current_read + "_unpaired_1.fastq.gz " + current_read + "_paired_2.fastq.gz " + current_read + "_unpaired_2.fastq.gz " + "SLIDINGWINDOW:4:20 MINLEN:25 ILLUMINACLIP:/vol/storage/Trimmomatic-0.39/adapters/TruSeq3-PE.fa:2:30:10:2:keepBothReads")
+	
+	if not os.path.exists(current_read + "_paired_1.fastq.gz"):
+		print("Trimmomatic failed. Trying again with argument -phred64...\n")
+		os.system("java -jar /vol/storage/Trimmomatic-0.39/trimmomatic-0.39.jar PE -threads 8 -phred64 " + current_read + "_1.fastq.gz " + current_read + "_2.fastq.gz " + current_read + "_paired_1.fastq.gz " + current_read + "_unpaired_1.fastq.gz " + current_read + "_paired_2.fastq.gz " + current_read + "_unpaired_2.fastq.gz " + "SLIDINGWINDOW:4:20 MINLEN:25 ILLUMINACLIP:/vol/storage/Trimmomatic-0.39/adapters/TruSeq3-PE.fa:2:30:10:2:keepBothReads")
+
+	if not os.path.exists(current_read + "_paired_1.fastq.gz"):
+		runtime_per_animal.append(loop_time)
+		print("Trimmomatic didn't work!")
+		continue
 	
 	#
 	#	fastqc quality control
 	#
 
 	# create quality control files of reads before they got trimmed
-	print("\nCreating fastqc reports for untrimmed files...")
-	os.system("fastqc -t 18 -f fastq " + current_read + "_1.fastq.gz " + current_read + "_2.fastq.gz")
+	if not os.path.exists(current_read + "_1_fastqc.html"):
+		print("\nCreating fastqc reports for untrimmed files...")
+		os.system("fastqc -t 18 -f fastq " + current_read + "_1.fastq.gz " + current_read + "_2.fastq.gz")
+	else:
+		print("\nfastqc report for untrimmed files already exist")
 
 	# create quality control files of reads after trimming with trimmomatic
-	print("\nCreating fastqc reports for trimmed files...")
-	os.system("fastqc -t 18 -f fastq " + current_read + "_paired_1.fastq.gz" + current_read + "_paired_2.fastq.gz")
+	if not os.path.exists(current_read + "_paired_1_fastqc.html"):
+		print("\nCreating fastqc reports for trimmed files...")
+		os.system("fastqc -t 18 -f fastq " + current_read + "_paired_1.fastq.gz " + current_read + "_paired_2.fastq.gz")
+	else:
+		print("\nfastqc report for trimmed files already exist")
 
 	#
 	#	getOrganelle
@@ -189,7 +239,7 @@ for i in range(number_of_genomes):
 		first = current_read + "_paired_1.fastq.gz"
 		second = current_read + "_paired_2.fastq.gz"
 		folderName = current_path + "getOrganelle_" + names[i]
-		spades = "/vol/storage/SPAdes-3.15.4-Linux/bin/"
+		spades = "/vol/storage/SPAdes-3.15.5-Linux/bin/"
 		os.system(getOrganelle + " -1 " + first + " -2 " + second + " -o " + folderName + " -F animal_mt -R 10 --memory-save --out-per-round --which-spades " + spades)
 	else:
 		print("GetOrganelle folder already exists")
@@ -221,9 +271,55 @@ for i in range(number_of_genomes):
 	print("\nIndexing reference genome...")
 	os.system("samtools faidx " + current_unzipped_refGenome)
 
-	# create .vcf
+	# create the .vcf file
 	print("\nCreating .vcf file...")
-	os.system("samtools mpileup -C50 -uf " + current_unzipped_refGenome + " " + current_path + "bwa.sorted.bam | bcftools call -c -o " + current_path + "output.vcf")
+	os.system("samtools mpileup -q 30 -Q 25 -C50 -uf " + current_unzipped_refGenome + " " + current_path + "bwa.sorted.bam | bcftools call -c -o " + current_path + "output.vcf")
+
+	#
+	#	extracting data from the .vcf file
+	#
+
+	if os.path.exists(current_path + "psmc/"):
+		print("\npsmc folder already exists\n")
+	else:
+		os.makedirs(current_path + "psmc/")
+
+	# create consensus file for psmc
+	print("\nCreating consensus file for psmc")
+	os.system("vcfutils.pl vcf2fq -d 5 -D 30 " + current_path + "output.vcf | gzip > " + current_path + "psmc/" + "consensus.fq.gz")
+
+	# create psmcfa file
+	print("\nCreating .psmcfa file")
+	os.system("/vol/storage/psmc-0.6.5/utils/fq2psmcfa -q30 " + current_path + "psmc/" + "consensus.fq.gz > " + current_path + "psmc/" + names[i] + ".psmcfa")
+
+	# create psmc file
+	print("\nCreating .psmc file")
+	os.system("/vol/storage/psmc-0.6.5/psmc -N25 -t15 -r5 -p 4+25*2+4+6 -o " + current_path + "psmc/" + names[i] + ".psmc " + current_path + "psmc/" + names[i] + ".psmcfa")
+	
+	# create .sh file
+	print("\nCreating .sh file")
+	os.system("/vol/storage/psmc-0.6.5/utils/psmc2history.pl " + current_path + "psmc/" + names[i] + ".psmc | /vol/storage/psmc-0.6.5/utils/history2ms.pl > " + current_path + "psmc/" + names[i] + "_ms-cmd.sh")
+	
+	#if os.path.exists(current_path + "bcftools/"):
+	#	print("\nbcftools folder already exists\n")
+	#else:
+	#	os.makedirs(current_path + "bcftools/")
+
+	# bcftools stats
+	#print("\nCreating bcftools stats")
+	#os.system("bcftools stats " + current_path + "output.vcf > " + current_path + "bcftools/stats.vchk")
+	
+	# bcftools plot
+	#print("\nPlotting bcftools stats")
+	#os.system("plot-vcfstats -p " + current_path + "bcftools/ -t " + names[i] + " " + current_path + "bcftools/stats.vchk")
+
+	# bcftools roh
+	#print("\nCreating bcftools roh")
+	#os.system("bcftools roh -G30 --AF-dflt 0.4 " + current_path + "output.vcf > " + current_path + "bcftools/" + names[i] + ".roh")
+
+	# measure of heterozygosity
+	#print("\nMeasuring heterozygosity")
+	#os.system("python /vol/storage/ba/scripts/get_het_vcf.py output.vcf -o " + current_path + " -n " + names[i])
 
 	# zip .vcf, because they are like 110 GB big (i only have 2 TB, i need space)
 	print("\nZipping .vcf file...")
@@ -232,6 +328,10 @@ for i in range(number_of_genomes):
 	# delete files that aren't needed anymore
 	print("\nDeleting files that aren't needed anymore...\n")
 	os.system("rm " + current_read)
+	# The two lines below are here, because some files have ".lite.1" or ".sralite.1" in their name
+	# It's not a problem if these files don't exists, because the command will just print out that it didn't work
+	os.system("rm " + current_read + ".lite.1")
+	os.system("rm " + current_read + ".sralite.1")
 	os.system("rm " + current_refGenome)
 	os.system("rm " + current_read + "_1.fastq.gz")
 	os.system("rm " + current_read + "_2.fastq.gz")
@@ -239,7 +339,7 @@ for i in range(number_of_genomes):
 	os.system("rm " + current_read + "_paired_2.fastq.gz")
 	os.system("rm " + current_read + "_unpaired_1.fastq.gz")
 	os.system("rm " + current_read + "_unpaired_2.fastq.gz")
-	os.system("rm " + current_path + "bwa.sorted.bam")
+	# os.system("rm " + current_path + "bwa.sorted.bam")
 	os.system("rm " + current_path + "bwa.sorted.bam.bai")
 	os.system("rm " + current_unzipped_refGenome)
 	os.system("rm " + current_unzipped_refGenome + ".fai")
