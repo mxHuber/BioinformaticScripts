@@ -17,11 +17,10 @@ if not output_path[-1:] == "/" and not output_path[:-1] == "\\":
 binSize = 100
 mutationRate = 2.5e-9
 yearsPerGeneration = 10
-x_origin = 1e4
+x_origin = 1e5
 y_origin = 0
-x_end = 1e7
-y_end = 1e8
-y_label = "10^8"	
+x_end = 5e7
+y_end = 8e5
 
 # read in data from the input file
 data_file = open(data_path, "r")
@@ -54,10 +53,10 @@ sizes = [N0 * i for i in lambdas]
 # plot variables
 plot = plt.figure()
 subPlot = plot.add_subplot(111)
-subPlot.set_title("Rhodinocichla rosea")
+subPlot.set_title("Ptilorrhoa leucosticta")
 subPlot.step(times, sizes, where='post', linestyle='-')
 subPlot.set_xlabel("Unscaled Generation Time")
-subPlot.set_ylabel("Effective size (x " + y_label + ")")
+subPlot.set_ylabel("Effective size")
 subPlot.set_xlim(x_origin, x_end)
 subPlot.set_ylim(y_origin, y_end)
 subPlot.set_xscale('log')
